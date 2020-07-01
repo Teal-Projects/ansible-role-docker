@@ -1,0 +1,55 @@
+---
+
+- name: Create directory /opt/infra-binaries/temp
+  file:
+    path: /opt/infra-binaries/temp
+    state: directory
+    owner: '{{ ansible_user_id }}'
+    group: '{{ ansible_user_id }}'
+    mode: 0755
+  become: yes
+
+##################################################
+# Binaries
+##################################################
+
+- block:
+
+  - name: Download and untar docker binaries
+    unarchive:
+      src: '{{ docker_url }}'
+      dest: /opt/infra-binaries/temp/
+      remote_src: yes
+  
+  - name: Move docker binaries to /opt/infra-binaries
+    copy:
+      remote_src: yes
+      src: "/opt/infra-binaries/temp/docker/{{ item }}" 
+      dest: /opt/infra-binaries
+      mode: 0744
+    with_items:
+    - docker
+  
+  tags: [binaries]
+
+##################################################
+# Services
+##################################################
+
+- block:
+
+  - name: Move services files
+    template:
+      src: "{{ item }}"
+      dest: /etc/systemd/system/{{ item | basename | regex_replace('\.j2$', '') }}
+      owner: '{{ ansible_user_id }}'
+      group: '{{ ansible_user_id }}'
+      mode: '0644'
+      backup: yes
+    become: yes
+    with_items:
+      - docker.service.j2
+    notify:
+    - restart docker
+  
+  tags: [services]
